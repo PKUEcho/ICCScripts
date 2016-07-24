@@ -1,7 +1,7 @@
 import util
 import os
 
-MANIFEST_NAME_NODE = 'android:name(0x01010003)'
+MANIFEST_NAME_NODE = '0x01010003'
 
 def isElement(line):
     return line.strip()[:2] == 'E:'
@@ -12,10 +12,14 @@ def getElementName(line):
 def isAttr(line):
     return line.strip()[:2] == 'A:'
 
+def isNode(line):
+    return line.strip()[:2] == 'N:'
+
 def getAttrNameAndValue(line):
     temp = line.strip().split(' ')[1]
     pos = temp.find('=')
-    return temp[:pos], temp[pos + 1:]
+    name = temp[:pos]
+    return name[name.find('(') + 1:name.find(')')], temp[pos + 1:]
 
 def getDepth(line):
     return (len(line) - len(line.lstrip())) / 2
@@ -26,8 +30,10 @@ def parse_manifest(pkg):
     offset = 0
     for line in f:
         line = line.replace('"', '')
-        if isElement(line) and getElementName(line) == 'manifest':
-            offset = getDepth(line)
+        if isNode(line):
+            if getDepth(line) >= len(depth_nodes):
+                offset += 1
+            continue
         depth = getDepth(line) - offset
         if isElement(line):
             name = getElementName(line)
@@ -80,12 +86,13 @@ def parse_icc(pkg):
                 sBroadcast.append(new_data)
     return {'service': sService, 'broadcast': sBroadcast}
 
-top_pkgs = util.readTopList(100)
+top_pkgs = util.readTopList(500)
 pkg_map = {}
 for pkg in top_pkgs:
     if os.path.getsize('manifests/' + pkg + '.manifest') == 0:
         continue
-    else:
+    manifest = parse_manifest(pkg)
+    if 'application' in manifest:
         pkg_map[pkg] = (parse_icc(pkg), parse_manifest(pkg))
 
 pkgs = pkg_map.keys()
